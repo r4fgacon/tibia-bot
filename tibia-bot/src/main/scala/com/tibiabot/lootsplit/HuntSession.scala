@@ -63,7 +63,12 @@ final case class HuntSession(
   /** Transfers already settled hunt-by-hunt and then netted, when this session is
    *  several hunts folded together. `None` means compute them from this session's
    *  members as a single split — the one-analyser case. */
-  settledTransfers: Option[List[HuntTransfer]] = None
+  settledTransfers: Option[List[HuntTransfer]] = None,
+  /** Extra supplies typed in after the analyser, as (name, amount) for whoever
+   *  was given some. Empty unless [[withExtraSupplies]] built this session.
+   *  Already folded into `supplies` and `balance` — kept so the reply can say
+   *  why those two no longer match the paste. */
+  extraSupplies: List[(String, Long)] = Nil
 ) {
 
   /** Seconds the party was actually hunting.
@@ -89,6 +94,32 @@ final case class HuntSession(
    *  transfers below are all working towards. */
   def individualBalance: Long =
     if (members.isEmpty) balance else Math.floorDiv(balance, members.size)
+
+  /** Add out-of-analyser supplies — imbues, a prism, anything the client did not
+   *  count. Each amount lines up with [[members]]. That player's supplies go up
+   *  and their balance down by the same gold, and the party's supplies and
+   *  balance move with them. Loot is untouched: nothing was looted, it was spent.
+   *
+   *  Amounts past the party are dropped, missing ones are zero, and a list of
+   *  zeroes is the same session. A negative is not an expense; it is ignored
+   *  rather than refunded, because the form that collects these rejects a minus
+   *  before it gets here and a stray one should not invert the split. */
+  def withExtraSupplies(amounts: Seq[Long]): HuntSession = {
+    val extras = amounts.map(amount => math.max(amount, 0L)).padTo(members.size, 0L).take(members.size).toList
+    if (extras.forall(_ == 0L)) this
+    else {
+      val updated = members.zip(extras).map { case (member, extra) =>
+        member.copy(supplies = member.supplies + extra, balance = member.balance - extra)
+      }
+      val added = extras.sum
+      copy(
+        supplies = supplies + added,
+        balance = balance - added,
+        members = updated,
+        extraSupplies = updated.zip(extras).collect { case (member, extra) if extra > 0L => member.name -> extra }
+      )
+    }
+  }
 
   def totalDamage: Long = members.map(_.damage).sum
 

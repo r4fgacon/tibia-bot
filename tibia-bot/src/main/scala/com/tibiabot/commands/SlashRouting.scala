@@ -32,6 +32,7 @@ object SlashRouting {
     "stamina"   -> (RespawnCommands.handle _),
     "bookings"  -> (RespawnCommands.bookings _),
     "lootsplit" -> (LootSplitCommands.handle _),
+    "lootsplitplus" -> (LootSplitCommands.handlePlus _),
     "admin"     -> (AdminCommands.handle _)
   )
 
@@ -46,5 +47,5 @@ object SlashRouting {
    *  under a root is named at the depth it actually lives at rather than
    *  silently matching — or missing — on the root alone.
    */
-  val opensModal: Set[String] = Set("lootsplit")
+  val opensModal: Set[String] = Set("lootsplit", "lootsplitplus")
 }

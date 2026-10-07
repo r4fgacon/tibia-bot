@@ -89,6 +89,14 @@ class LootSplitEmbedsSpec extends AnyFunSuite with Matchers with OptionValues {
       "```\ntransfer 2359337 to Violent Beams\n```"
   }
 
+  test("extra supplies are named under the balance they changed") {
+    val hunt = Hunt.copy(extraSupplies = List("The Wingga" -> 1000L))
+    val description = split(hunt).getDescription
+    description should include("Extra supplies:")
+    description should include("The Wingga")
+    description should include("**1,000**")
+  }
+
   test("the footer says how long the hunt ran and when it started") {
     split(Hunt).getFooter.getText shouldBe "02:17h hunt on 2026-09-01T21:12"
   }

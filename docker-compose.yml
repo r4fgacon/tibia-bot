@@ -112,6 +112,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - violentbot
 
 volumes:
   redis-data:

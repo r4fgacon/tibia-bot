@@ -130,7 +130,13 @@ class BotListener extends ListenerAdapter with StrictLogging {
     // with the submission and answers from that, with no database or REST work in
     // between, and it has to pick ephemeral-or-not from what the parse said — which
     // is a choice deferring would already have made. See interactions.LootSplit.
-    if (interactions.LootSplit.handlesModal(event.getModalId)) {
+    if (interactions.LootSplitPlus.handlesModal(event.getModalId)) {
+      try interactions.LootSplitPlus.handleModal(event)
+      catch {
+        case ex: Throwable => logger.error(s"Unhandled exception on the loot split plus form", ex)
+      }
+    }
+    else if (interactions.LootSplit.handlesModal(event.getModalId)) {
       try interactions.LootSplit.handleModal(event)
       catch {
         case ex: Throwable => logger.error(s"Unhandled exception on the loot split form", ex)
@@ -191,7 +197,13 @@ class BotListener extends ListenerAdapter with StrictLogging {
   override def onButtonInteraction(event: ButtonInteractionEvent): Unit =
     // Loot Split opens a form and nothing else, so it cannot be deferred and has
     // no reason to queue — the press is answered on the event thread.
-    if (interactions.LootSplit.handlesButton(event.getComponentId)) {
+    if (interactions.LootSplitPlus.handlesButton(event.getComponentId)) {
+      try interactions.LootSplitPlus.handleButton(event)
+      catch {
+        case ex: Throwable => logger.error(s"Unhandled exception opening extra expenses", ex)
+      }
+    }
+    else if (interactions.LootSplit.handlesButton(event.getComponentId)) {
       try interactions.LootSplit.handleButton(event)
       catch {
         case ex: Throwable => logger.error(s"Unhandled exception opening the loot split form", ex)

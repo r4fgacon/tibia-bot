@@ -99,11 +99,20 @@ object LootSplitEmbeds {
   private def headline(hunt: HuntSession, goldEmoji: String): List[String] =
     List(
       Some(s"Balance: ${gold(hunt.balance, goldEmoji)}"),
+      extraLine(hunt, goldEmoji),
       if (hunt.hunts == 1 && hunt.members.size >= 2)
         Some(s"Individual balance: ${gold(hunt.individualBalance, goldEmoji)}")
       else None,
       hunt.lootPerHour.map(rate => s"Loot per hour: ${gold(rate, goldEmoji)}")
     ).flatten
+
+  /** Who paid on top of the analyser, so a balance that no longer matches the
+   *  paste has the reason sitting on the line under it. */
+  private def extraLine(hunt: HuntSession, goldEmoji: String): Option[String] =
+    if (hunt.extraSupplies.isEmpty) None
+    else Some("Extra supplies: " + hunt.extraSupplies.map { case (name, amount) =>
+      s"$name ${gold(amount, goldEmoji)}"
+    }.mkString(", "))
 
   private def shareField(embed: EmbedBuilder, name: String, shares: List[(HuntMember, Double)]): Unit =
     if (shares.nonEmpty) {

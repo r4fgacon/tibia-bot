@@ -202,6 +202,9 @@ object HuntAnalyser {
   private def stamp(text: String): Option[LocalDateTime] =
     Try(LocalDateTime.parse(text.trim, Stamp)).toOption
 
+  /** The same reading as a `Loot:` line, for an amount typed into extra expenses. */
+  private[lootsplit] def goldAmount(raw: String): Option[Long] = number(raw)
+
   private def number(values: Map[String, String], key: String): Option[Long] =
     values.get(key).flatMap(number)
 

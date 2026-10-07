@@ -23,6 +23,17 @@ object LootSplitIds {
 
   val Modal: String = s"${Prefix}modal"
 
+  /** `/lootsplitplus` pastes one hunt here, then a button opens the expenses form.
+   *  The button and that form carry a token: the paste itself does not fit in a
+   *  component id, so the token is a key into a short-lived map. */
+  val PlusModal: String = s"${Prefix}plus"
+  val PlusOpen: String = s"${Prefix}px:"
+  val PlusExpenses: String = s"${Prefix}pm:"
+
+  def plusOpen(token: String, page: Int): String = s"$PlusOpen$token:$page"
+
+  def plusExpenses(token: String, page: Int): String = s"$PlusExpenses$token:$page"
+
   /** Five paste boxes — Discord's modal ceiling — so an evening of hunts can be
    *  split without concatenating them by hand. Each box still accepts several
    *  sessions pasted one after another; ten hunts across the lot is the parse
@@ -34,6 +45,10 @@ object LootSplitIds {
   def handlesButton(componentId: String): Boolean = componentId == Open
 
   def handlesModal(modalId: String): Boolean = modalId == Modal
+
+  def handlesPlusButton(componentId: String): Boolean = componentId.startsWith(PlusOpen)
+
+  def handlesPlusModal(modalId: String): Boolean = modalId == PlusModal || modalId.startsWith(PlusExpenses)
 
   def button: Button = Button.primary(Open, Label)
 

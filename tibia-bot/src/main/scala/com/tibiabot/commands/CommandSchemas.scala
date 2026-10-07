@@ -89,6 +89,13 @@ object CommandSchemas {
   val lootSplitCommand: SlashCommandData =
     Commands.slash("lootsplit", "Split party hunt analysers — up to 10 hunts together")
 
+  /** One hunt, then a second form that adds supplies the analyser did not count.
+   *
+   *  The name is `lootsplitplus` because a slash-command name cannot contain `+`.
+   *  Same gate as `/lootsplit`: pasted text and arithmetic, no world and no database. */
+  val lootSplitPlusCommand: SlashCommandData =
+    Commands.slash("lootsplitplus", "Split one hunt and add extra supplies for any player")
+
   val boostedCommand: SlashCommandData = Commands.slash("boosted", "Turn off these notifications or filter them")
     .addOptions(
       new OptionData(OptionType.STRING, "option", "Would you like to add/remove a boss or creature?").setRequired(true)
@@ -117,7 +124,7 @@ object CommandSchemas {
    *  set up — /setup itself, /help (how do I use this bot, including how to
    *  run /setup in the first place), and galthen/boosted/patreon/lootsplit
    *  (personal, self-service commands unrelated to any specific world). */
-  val initialCommands: List[SlashCommandData] = List(setupCommand, helpCommand, galthenCommand, boostedCommand, patreonCommand, lootSplitCommand)
+  val initialCommands: List[SlashCommandData] = List(setupCommand, helpCommand, galthenCommand, boostedCommand, patreonCommand, lootSplitCommand, lootSplitPlusCommand)
 
   /** Only meaningful once at least one world is tracked in the guild — added
    *  on top of initialCommands once /setup first succeeds there. remove/

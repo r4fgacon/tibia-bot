@@ -1,6 +1,6 @@
 package com.tibiabot.commands.handlers
 
-import com.tibiabot.interactions.LootSplit
+import com.tibiabot.interactions.{LootSplit, LootSplitPlus}
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 
 /** `/lootsplit` — the same form the claim-ended DM offers, reachable without one.
@@ -19,4 +19,6 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 object LootSplitCommands {
 
   def handle(event: SlashCommandInteractionEvent): Unit = event.replyModal(LootSplit.modal).queue()
+
+  def handlePlus(event: SlashCommandInteractionEvent): Unit = event.replyModal(LootSplitPlus.pasteModal).queue()
 }
