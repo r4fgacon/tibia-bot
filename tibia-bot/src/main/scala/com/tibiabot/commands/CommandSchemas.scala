@@ -76,8 +76,10 @@ object CommandSchemas {
 
   val patreonCommand: SlashCommandData = Commands.slash("patreon", "View or manage your own Patreon seats")
 
-  /** Opens the loot split form. No options: what it wants is a pasted analyser,
-   *  which is a paragraph, and a command option is a single line.
+  /** Opens the loot split form. No options: what it wants is pasted analysers,
+   *  which are paragraphs, and a command option is a single line. The form takes
+   *  up to five boxes / ten hunts, splits each on its own party, and nets the
+   *  transfers into one reply.
    *
    *  Sits with the self-service commands rather than the respawn ones despite the
    *  claim-ended DM carrying the same form: it reads text somebody pasted and does
@@ -85,7 +87,7 @@ object CommandSchemas {
    *  on either a configured world or the respawn feature would hide it from servers
    *  it works perfectly well in. */
   val lootSplitCommand: SlashCommandData =
-    Commands.slash("lootsplit", "Split a party hunt from your hunt analyser")
+    Commands.slash("lootsplit", "Split party hunt analysers — up to 10 hunts together")
 
   val boostedCommand: SlashCommandData = Commands.slash("boosted", "Turn off these notifications or filter them")
     .addOptions(

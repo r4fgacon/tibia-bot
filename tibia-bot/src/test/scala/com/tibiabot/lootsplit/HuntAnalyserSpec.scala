@@ -266,4 +266,263 @@ class HuntAnalyserSpec extends AnyFunSuite with Matchers with OptionValues {
     hunt.lootPerHour shouldBe empty
     hunt.transfers should have size 3
   }
+
+  // --- several hunts in one paste -----------------------------------------
+
+  /** A real five-member session, the same numbers the party typed from. */
+  private val Evening: String =
+    List(
+      "Session data: From 2026-10-06, 21:02:29 to 2026-10-06, 21:56:51",
+      "Session: 00:54h",
+      "Loot Type: Leader",
+      "Loot: 9,234,027",
+      "Supplies: 2,014,531",
+      "Balance: 7,219,496",
+      "Decay Skipuje Tury",
+      "\tLoot: 2,171,915",
+      "\tSupplies: 269,594",
+      "\tBalance: 1,902,321",
+      "\tDamage: 2,774,900",
+      "\tHealing: 2,309,435",
+      "Hansmann",
+      "\tLoot: 1,310,742",
+      "\tSupplies: 627,912",
+      "\tBalance: 682,830",
+      "\tDamage: 1,759,977",
+      "\tHealing: 1,357,809",
+      "Kubdrut",
+      "\tLoot: 1,954,110",
+      "\tSupplies: 196,116",
+      "\tBalance: 1,757,994",
+      "\tDamage: 2,520,525",
+      "\tHealing: 1,624,116",
+      "Oli Giga Spell",
+      "\tLoot: 1,981,557",
+      "\tSupplies: 389,679",
+      "\tBalance: 1,591,878",
+      "\tDamage: 2,511,505",
+      "\tHealing: 346,760",
+      "Simek Giga Maczuga (Leader)",
+      "\tLoot: 1,815,703",
+      "\tSupplies: 531,230",
+      "\tBalance: 1,284,473",
+      "\tDamage: 2,392,983",
+      "\tHealing: 1,549,985"
+    ).mkString("\n")
+
+  private def hour(from: String, to: String, loot: Long, members: List[(String, Long)]): String = {
+    val header = List(
+      s"Session data: From $from to $to",
+      "Session: 01:00h",
+      "Loot Type: Leader",
+      s"Loot: $loot",
+      "Supplies: 0",
+      s"Balance: $loot"
+    )
+    val body = members.flatMap { case (name, balance) =>
+      List(name, s"\tLoot: $balance", "\tSupplies: 0", s"\tBalance: $balance", "\tDamage: 1", "\tHealing: 1")
+    }
+    (header ++ body).mkString("\n")
+  }
+
+  test("the five-man evening splits into the transfers they typed") {
+    val hunt = parsed(Evening)
+    hunt.members.map(_.name) shouldBe
+      List("Decay Skipuje Tury", "Hansmann", "Kubdrut", "Oli Giga Spell", "Simek Giga Maczuga")
+    hunt.balance shouldBe 7219496L
+    hunt.individualBalance shouldBe 1443899L
+    hunt.lootPerHour shouldBe Some(10190832L)
+    hunt.transfersByPayer shouldBe List(
+      "Decay Skipuje Tury" -> List(HuntTransfer("Decay Skipuje Tury", "Hansmann", 458422L)),
+      "Kubdrut" -> List(
+        HuntTransfer("Kubdrut", "Hansmann", 302647L),
+        HuntTransfer("Kubdrut", "Simek Giga Maczuga", 11448L)
+      ),
+      "Oli Giga Spell" -> List(HuntTransfer("Oli Giga Spell", "Simek Giga Maczuga", 147978L))
+    )
+  }
+
+  /** Afternoon + evening of 2026-10-06: Avalanche only in the first hunt,
+   *  Decay from the second, Kubdrut only in the third. Combined they are six. */
+  private val Afternoon: String =
+    List(
+      "Session data: From 2026-10-06, 16:03:56 to 2026-10-06, 17:04:40",
+      "Session: 01:00h",
+      "Loot Type: Leader",
+      "Loot: 9,109,870",
+      "Supplies: 1,834,650",
+      "Balance: 7,275,220",
+      "Avalanche Blond Loczek",
+      "\tLoot: 128,030",
+      "\tSupplies: 338,658",
+      "\tBalance: -210,628",
+      "\tDamage: 11,305,888",
+      "\tHealing: 5,584,770",
+      "Hansmann",
+      "\tLoot: 2,807,480",
+      "\tSupplies: 726,502",
+      "\tBalance: 2,080,978",
+      "\tDamage: 12,222,431",
+      "\tHealing: 3,094,988",
+      "Oli Giga Spell",
+      "\tLoot: 992,108",
+      "\tSupplies: 314,776",
+      "\tBalance: 677,332",
+      "\tDamage: 16,690,084",
+      "\tHealing: 1,869,611",
+      "Simek Giga Maczuga (Leader)",
+      "\tLoot: 5,182,252",
+      "\tSupplies: 454,714",
+      "\tBalance: 4,727,538",
+      "\tDamage: 6,767,022",
+      "\tHealing: 2,693,927"
+    ).mkString("\n")
+
+  private val LateAfternoon: String =
+    List(
+      "Session data: From 2026-10-06, 17:09:04 to 2026-10-06, 19:11:20",
+      "Session: 02:02h",
+      "Loot Type: Leader",
+      "Loot: 22,420,474",
+      "Supplies: 4,493,643",
+      "Balance: 17,926,831",
+      "Decay Skipuje Tury",
+      "\tLoot: 210,964",
+      "\tSupplies: 1,181,801",
+      "\tBalance: -970,837",
+      "\tDamage: 30,256,194",
+      "\tHealing: 13,685,337",
+      "Hansmann",
+      "\tLoot: 8,094,872",
+      "\tSupplies: 1,599,563",
+      "\tBalance: 6,495,309",
+      "\tDamage: 28,793,086",
+      "\tHealing: 5,687,432",
+      "Oli Giga Spell",
+      "\tLoot: 2,857,372",
+      "\tSupplies: 446,577",
+      "\tBalance: 2,410,795",
+      "\tDamage: 37,865,526",
+      "\tHealing: 3,695,401",
+      "Simek Giga Maczuga (Leader)",
+      "\tLoot: 11,257,266",
+      "\tSupplies: 1,265,702",
+      "\tBalance: 9,991,564",
+      "\tDamage: 16,102,483",
+      "\tHealing: 6,670,701"
+    ).mkString("\n")
+
+  /** The 21:02 session pasted first, then the two earlier ones, each copy
+   *  carrying the mark the client actually puts on the clipboard. Read as one
+   *  hunt those marks turn the later headers into members, the five-man balance
+   *  is divided by fifteen, and somebody is told to transfer gold to themselves. */
+  test("a later session whose header carries a clipboard mark stays its own hunt") {
+    val pasted = "\uFEFF" + List(Evening, "\uFEFF" + LateAfternoon, "\u200E" + Afternoon).mkString("\n")
+    val hunt = parsed(pasted)
+    hunt.hunts shouldBe 3
+    hunt.members.map(_.name) shouldBe List(
+      "Decay Skipuje Tury", "Hansmann", "Kubdrut", "Oli Giga Spell",
+      "Simek Giga Maczuga", "Avalanche Blond Loczek"
+    )
+    hunt.balance shouldBe 32421547L
+    hunt.lootPerHour shouldBe Some(10304152L)
+    hunt.transfers.exists(transfer => transfer.from == transfer.to) shouldBe false
+    hunt.transfersByPayer shouldBe List(
+      "Hansmann" -> List(
+        HuntTransfer("Hansmann", "Decay Skipuje Tury", 1555180L),
+        HuntTransfer("Hansmann", "Avalanche Blond Loczek", 262173L)
+      ),
+      "Kubdrut" -> List(
+        HuntTransfer("Kubdrut", "Hansmann", 302647L),
+        HuntTransfer("Kubdrut", "Simek Giga Maczuga", 11448L)
+      ),
+      "Simek Giga Maczuga" -> List(
+        HuntTransfer("Simek Giga Maczuga", "Decay Skipuje Tury", 3438942L),
+        HuntTransfer("Simek Giga Maczuga", "Oli Giga Spell", 3064407L),
+        HuntTransfer("Simek Giga Maczuga", "Avalanche Blond Loczek", 1767260L)
+      )
+    )
+  }
+
+  test("three hunts with a rotating party settle each hunt, then net the transfers") {
+    val hunt = parsed(List(Afternoon, LateAfternoon, Evening).mkString("\n"))
+    hunt.hunts shouldBe 3
+    hunt.members.map(_.name) shouldBe List(
+      "Avalanche Blond Loczek", "Hansmann", "Oli Giga Spell",
+      "Simek Giga Maczuga", "Decay Skipuje Tury", "Kubdrut"
+    )
+    hunt.loot shouldBe 40764371L
+    hunt.supplies shouldBe 8342824L
+    hunt.balance shouldBe 32421547L
+    hunt.sessionLabel shouldBe "03:57h"
+    hunt.lootPerHour shouldBe Some(10304152L)
+    hunt.members.map(m => m.name -> m.balance) shouldBe List(
+      "Avalanche Blond Loczek" -> -210628L,
+      "Hansmann" -> 9259117L,
+      "Oli Giga Spell" -> 4680005L,
+      "Simek Giga Maczuga" -> 16003575L,
+      "Decay Skipuje Tury" -> 931484L,
+      "Kubdrut" -> 1757994L
+    )
+    hunt.transfersByPayer shouldBe List(
+      "Hansmann" -> List(
+        HuntTransfer("Hansmann", "Avalanche Blond Loczek", 262173L),
+        HuntTransfer("Hansmann", "Decay Skipuje Tury", 1555180L)
+      ),
+      "Simek Giga Maczuga" -> List(
+        HuntTransfer("Simek Giga Maczuga", "Avalanche Blond Loczek", 1767260L),
+        HuntTransfer("Simek Giga Maczuga", "Oli Giga Spell", 3064407L),
+        HuntTransfer("Simek Giga Maczuga", "Decay Skipuje Tury", 3438942L)
+      ),
+      "Kubdrut" -> List(
+        HuntTransfer("Kubdrut", "Hansmann", 302647L),
+        HuntTransfer("Kubdrut", "Simek Giga Maczuga", 11448L)
+      )
+    )
+  }
+
+  test("two hunts pasted back to back net opposite transfers into one command") {
+    val first = hour("2026-10-06, 21:00:00", "2026-10-06, 22:00:00", 1000000L, List("Alpha" -> 700000L, "Beta" -> 300000L))
+    val second = hour("2026-10-06, 23:00:00", "2026-10-07, 00:00:00", 1000000L, List("Alpha" -> 400000L, "Beta" -> 600000L))
+    val hunt = parsed(first + "\n" + second)
+    hunt.hunts shouldBe 2
+    hunt.loot shouldBe 2000000L
+    hunt.balance shouldBe 2000000L
+    hunt.members.map(m => m.name -> m.balance) shouldBe List("Alpha" -> 1100000L, "Beta" -> 900000L)
+    hunt.transfers shouldBe List(HuntTransfer("Alpha", "Beta", 100000L))
+  }
+
+  test("a name that only appears in one hunt is not given a share of the others") {
+    val first = hour("2026-10-06, 21:00:00", "2026-10-06, 22:00:00", 1000000L, List("Alice" -> 800000L, "Bob" -> 200000L))
+    val second = hour("2026-10-06, 23:00:00", "2026-10-07, 00:00:00", 1000000L, List("Bob" -> 800000L, "Carol" -> 200000L))
+    val hunt = parsed(first + "\n" + second)
+    hunt.transfers shouldBe List(
+      HuntTransfer("Alice", "Bob", 300000L),
+      HuntTransfer("Bob", "Carol", 300000L)
+    )
+  }
+
+  test("combined loot per hour uses time spent hunting, not the break between hunts") {
+    val first = hour("2026-10-06, 21:00:00", "2026-10-06, 22:00:00", 1000000L, List("Alpha" -> 1000000L))
+    val second = hour("2026-10-06, 23:00:00", "2026-10-07, 00:00:00", 1000000L, List("Alpha" -> 1000000L))
+    val hunt = parsed(first + "\n" + second)
+    hunt.durationSeconds shouldBe Some(7200L)
+    hunt.lootPerHour shouldBe Some(1000000L)
+    hunt.sessionLabel shouldBe "02:00h"
+  }
+
+  test("eleven hunts are refused rather than silently dropping the rest") {
+    val one = hour("2026-10-06, 10:00:00", "2026-10-06, 11:00:00", 100L, List("Solo" -> 100L))
+    val problem = refusal(List.fill(11)(one).mkString("\n"))
+    problem should include("11 hunts")
+    problem should include("10")
+  }
+
+  test("a later hunt that does not parse names which one it was") {
+    val first = hour("2026-10-06, 21:00:00", "2026-10-06, 22:00:00", 1000000L, List("Alpha" -> 1000000L))
+    val broken = first.split("\n").filterNot(_ == "Balance: 1000000").mkString("\n")
+    val problem = refusal(first + "\n" + broken)
+    problem should include("Hunt 2")
+    problem should include("Balance:")
+  }
 }

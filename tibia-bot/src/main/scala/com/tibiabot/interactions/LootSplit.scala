@@ -16,8 +16,8 @@ import net.dv8tion.jda.api.modals.Modal
  *  ==Why neither half is deferred==
  *  Every other interaction in this bot is acknowledged up front because it has
  *  database or REST work to do before it can say anything. This one has none: the
- *  whole input arrives inside the interaction, the parse is string work on at most
- *  four thousand characters, and the embed is built from the result. So both halves
+ *  whole input arrives inside the interaction, the parse is string work on a few
+ *  pasted hunts, and the embed is built from the result. So both halves
  *  answer on JDA's event thread rather than queueing for a worker — which is not
  *  just cheap but necessary, since a press that opens a modal cannot be deferred at
  *  all and a submission that cannot be deferred ephemerally-or-not depending on the
@@ -37,29 +37,46 @@ object LootSplit extends StrictLogging {
 
   def handlesModal(modalId: String): Boolean = LootSplitIds.handlesModal(modalId)
 
-  /** The paste box. A paragraph input at Discord's ceiling — an analyser for a
-   *  four-member session runs to about six hundred characters, so the limit only
-   *  bites on a party of roughly twenty, which the parser reports as a cut-off
-   *  paste rather than splitting what survived. */
+  /** Five paste boxes — Discord will not take a sixth — each at the paragraph
+   *  ceiling. A four-member session is about six hundred characters, so one box
+   *  holds several hunts pasted back to back; ten hunts in total is the parse
+   *  ceiling. A party of ~20 still overruns a single box, which the parser
+   *  reports as a cut-off paste rather than splitting what survived. */
   def modal: Modal =
-    Modal.create(LootSplitIds.Modal, "Loot split")
-      .addComponents(
-        Label.of(
-          "Paste your party hunt analyser",
-          "Right-click the session in the party hunt window and copy it.",
-          TextInput.create(LootSplitIds.PasteField, TextInputStyle.PARAGRAPH)
-            .setRequired(true)
-            .setMaxLength(TextInput.MAX_VALUE_LENGTH)
-            .setPlaceholder("Session data: From 2026-09-01, 21:12:00 to 2026-09-01, 23:29:40")
-            .build()
-        )
-      )
+    Modal.create(LootSplitIds.Modal, "Loot split — up to 10 hunts")
+      .addComponents(pasteBoxes: _*)
       .build()
+
+  private def pasteBoxes: Seq[Label] = {
+    val placeholder = "Session data: From 2026-09-01, 21:12:00 to 2026-09-01, 23:29:40"
+    LootSplitIds.PasteFields.zipWithIndex.map { case (id, index) =>
+      val (title, description, required) =
+        if (index == 0)
+          ("Hunt 1", "Copy from the party hunt window. Several hunts can go in one box.", true)
+        else if (index == 4)
+          ("Hunts 5–10", "Optional. More sessions, one after another if you have them.", false)
+        else
+          (s"Hunt ${index + 1}", "Optional. Another session, or several pasted together.", false)
+      Label.of(
+        title,
+        description,
+        TextInput.create(id, TextInputStyle.PARAGRAPH)
+          .setRequired(required)
+          .setMaxLength(TextInput.MAX_VALUE_LENGTH)
+          .setPlaceholder(placeholder)
+          .build()
+      )
+    }
+  }
 
   def handleButton(event: ButtonInteractionEvent): Unit = event.replyModal(modal).queue()
 
   def handleModal(event: ModalInteractionEvent): Unit = {
-    val pasted = Option(event.getValue(LootSplitIds.PasteField)).map(_.getAsString).getOrElse("")
+    val pasted = LootSplitIds.PasteFields
+      .flatMap(id => Option(event.getValue(id)).map(_.getAsString))
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .mkString("\n")
     HuntAnalyser.parse(pasted) match {
       case Left(problem) =>
         // Ephemeral, and the button left live: whoever pasted still needs a split,

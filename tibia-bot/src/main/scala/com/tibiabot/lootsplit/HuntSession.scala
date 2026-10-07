@@ -50,10 +50,23 @@ final case class HuntSession(
   loot: Long,
   supplies: Long,
   balance: Long,
-  members: List[HuntMember]
+  members: List[HuntMember],
+  /** How many analyser pastes were folded into this session. One unless
+   *  [[HuntSession.combine]] built it. */
+  hunts: Int = 1,
+  /** Sum of each hunt's real length, when this session is several hunts combined.
+   *
+   *  `from`/`to` then span the evening including the breaks, so pricing loot
+   *  against that window would understate the hourly rate. Empty for a single
+   *  hunt, which keeps using the header timestamps. */
+  huntedSeconds: Option[Long] = None,
+  /** Transfers already settled hunt-by-hunt and then netted, when this session is
+   *  several hunts folded together. `None` means compute them from this session's
+   *  members as a single split — the one-analyser case. */
+  settledTransfers: Option[List[HuntTransfer]] = None
 ) {
 
-  /** Seconds between the two header timestamps.
+  /** Seconds the party was actually hunting.
    *
    *  Not taken from the `Session:` label, which is rounded down to the minute: a
    *  2h17m40s hunt reads "02:17h" there, and pricing the loot against 2h17m00s
@@ -61,12 +74,14 @@ final case class HuntSession(
    *  parse, which is the only reason the hourly figures can be missing.
    */
   def durationSeconds: Option[Long] =
-    for {
-      start <- from
-      end <- to
-      seconds = ChronoUnit.SECONDS.between(start, end)
-      if seconds > 0
-    } yield seconds
+    huntedSeconds.filter(_ > 0).orElse {
+      for {
+        start <- from
+        end <- to
+        seconds = ChronoUnit.SECONDS.between(start, end)
+        if seconds > 0
+      } yield seconds
+    }
 
   def lootPerHour: Option[Long] = durationSeconds.map(seconds => Math.floorDiv(loot * 3600, seconds))
 
@@ -119,7 +134,13 @@ final case class HuntSession(
    *  receivers are short. That gold is simply never moved: no transfer is emitted
    *  for a surplus with nobody left to pay it to.
    */
-  def transfers: List[HuntTransfer] = {
+  def transfers: List[HuntTransfer] =
+    settledTransfers.getOrElse(splitThisHunt)
+
+  /** The transfers that square this session's own members. Several hunts use
+   *  [[HuntSession.netTransfers]] of this list instead, so a rotating party is
+   *  not re-split as if everyone had been there the whole evening. */
+  private def splitThisHunt: List[HuntTransfer] = {
     if (members.size < 2) Nil
     else {
       val payers = members.filter(member => owed(member) < 0)
@@ -148,5 +169,86 @@ final case class HuntSession(
   def transfersByPayer: List[(String, List[HuntTransfer])] = {
     val grouped = transfers.groupBy(_.from)
     members.map(_.name).distinct.flatMap(name => grouped.get(name).map(name -> _))
+  }
+}
+
+object HuntSession {
+
+  /** An evening of hunts: members matched by name so the embed can show totals,
+   *  but each hunt is split on its own party and the transfers are then netted.
+   *
+   *  Splitting the summed balances as one session would give someone who sat out
+   *  a hunt an equal share of hunts they were not on. Settling each analyser
+   *  first, then adding `A pays B` across hunts (and cancelling `B pays A`), is
+   *  the same commands they would have typed three times — one line each.
+   *
+   *  The hourly rate uses the time spent hunting, not the wall clock from the
+   *  first start to the last end, so a break between hunts does not dilute it.
+   */
+  def combine(sessions: List[HuntSession]): HuntSession = sessions match {
+    case Nil       => throw new IllegalArgumentException("combine on no hunts")
+    case List(one) => one
+    case many =>
+      val order = many.flatMap(_.members.map(_.name)).distinct
+      val byName = many.flatMap(_.members).groupBy(_.name)
+      val members = order.map { name =>
+        val appearances = byName(name)
+        HuntMember(
+          name = name,
+          loot = appearances.map(_.loot).sum,
+          supplies = appearances.map(_.supplies).sum,
+          balance = appearances.map(_.balance).sum,
+          damage = appearances.map(_.damage).sum,
+          healing = appearances.map(_.healing).sum,
+          leader = appearances.exists(_.leader)
+        )
+      }
+      val hunted = {
+        val lengths = many.map(_.durationSeconds)
+        if (lengths.forall(_.isDefined)) Some(lengths.flatten.sum).filter(_ > 0) else None
+      }
+      HuntSession(
+        from = many.flatMap(_.from).sortWith(_.isBefore(_)).headOption,
+        to = many.flatMap(_.to).sortWith(_.isAfter(_)).headOption,
+        sessionLabel = hunted.map(formatHours).getOrElse(""),
+        lootType = if (many.exists(_.lootType.equalsIgnoreCase("Market"))) "Market" else many.head.lootType,
+        loot = many.map(_.loot).sum,
+        supplies = many.map(_.supplies).sum,
+        balance = many.map(_.balance).sum,
+        members = members,
+        hunts = many.size,
+        huntedSeconds = hunted,
+        settledTransfers = Some(netTransfers(many.flatMap(_.transfers), order))
+      )
+  }
+
+  /** One command per pair of names: amounts in the same direction add, opposite
+   *  directions cancel. Order follows `memberOrder`, which is first-seen across
+   *  the hunts — the same order the embed lists people in. */
+  private[lootsplit] def netTransfers(all: List[HuntTransfer], memberOrder: List[String]): List[HuntTransfer] = {
+    val orderIndex = memberOrder.zipWithIndex.toMap
+    def idx(name: String): Int = orderIndex.getOrElse(name, Int.MaxValue)
+    val net = scala.collection.mutable.Map.empty[(String, String), Long]
+    all.foreach { transfer =>
+      if (transfer.amount > 0 && transfer.from != transfer.to) {
+        val aFirst = idx(transfer.from) < idx(transfer.to) ||
+          (idx(transfer.from) == idx(transfer.to) && transfer.from < transfer.to)
+        val canonical = if (aFirst) (transfer.from, transfer.to) else (transfer.to, transfer.from)
+        val signed = if (canonical._1 == transfer.from) transfer.amount else -transfer.amount
+        net(canonical) = net.getOrElse(canonical, 0L) + signed
+      }
+    }
+    net.iterator.flatMap { case ((from, to), amount) =>
+      if (amount > 0) Some(HuntTransfer(from, to, amount))
+      else if (amount < 0) Some(HuntTransfer(to, from, -amount))
+      else None
+    }.toList.sortBy(transfer => (idx(transfer.from), idx(transfer.to)))
+  }
+
+  /** The client's `Session:` shape: zero-padded hours and minutes, then `h`. */
+  def formatHours(seconds: Long): String = {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    f"$hours%02d:$minutes%02dh"
   }
 }

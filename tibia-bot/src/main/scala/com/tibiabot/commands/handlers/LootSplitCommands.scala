@@ -10,10 +10,11 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
  *  A party splitting a hunt they never claimed a spawn for, or splitting a second
  *  time after the button has been spent, has no way back to the form otherwise.
  *
- *  No options: the analyser is a paragraph of pasted text, and a slash command's
- *  arguments are a single line each. So this opens the form and does nothing else
- *  — which is also why it must not be deferred, and why `BotListener` treats it
- *  apart from every other command (see `SlashRouting.opensModal`).
+   *  No options: the analysers are paragraphs of pasted text, and a slash command's
+   *  arguments are a single line each. So this opens the form (five boxes, up to
+   *  ten hunts combined) and does nothing else — which is also why it must not be
+   *  deferred, and why `BotListener` treats it apart from every other command
+   *  (see `SlashRouting.opensModal`).
  */
 object LootSplitCommands {
 

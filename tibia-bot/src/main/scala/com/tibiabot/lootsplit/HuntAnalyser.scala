@@ -35,6 +35,11 @@ import scala.util.Try
  */
 object HuntAnalyser {
 
+  /** Discord's five paste boxes can hold more, but an evening of ten hunts is the
+   *  ceiling this will fold into one split — past that the reply stops being a
+   *  thing you copy from and becomes a dump. */
+  val MaxHunts: Int = 10
+
   /** Keys the header block uses. `loot type` is the only one not also a member key. */
   private val HeaderKeys = Set("session", "loot type", "loot", "supplies", "balance")
 
@@ -67,14 +72,54 @@ object HuntAnalyser {
     def withValue(key: String, value: String): Block = copy(values = values + (key -> value))
   }
 
-  def parse(text: String): Either[String, HuntSession] = {
-    val lines = text.linesIterator.map(_.trim).filter(_.nonEmpty).toList
+  def parse(text: String): Either[String, HuntSession] =
+    parseAll(text).map(HuntSession.combine)
+
+  /** Each hunt in the paste, in the order they appear, still uncombined.
+   *
+   *  A `Session data:` line starts a new hunt, so several analysers pasted one
+   *  after another — or spread across the form's extra boxes — read as an evening
+   *  rather than as a mangled first session. */
+  def parseAll(text: String): Either[String, List[HuntSession]] =
+    chunks(text).flatMap { parts =>
+      if (parts.size > MaxHunts)
+        Left(s"That's ${parts.size} hunts — I can combine at most $MaxHunts. Paste fewer, or split the evening in two.")
+      else {
+        val parsed = parts.zipWithIndex.map { case (part, index) =>
+          parseOne(part).left.map { problem =>
+            if (parts.size == 1) problem
+            else s"Hunt ${index + 1} didn't read. $problem"
+          }
+        }
+        parsed.collectFirst { case Left(problem) => problem } match {
+          case Some(problem) => Left(problem)
+          case None          => Right(parsed.collect { case Right(session) => session })
+        }
+      }
+    }
+
+  private def chunks(text: String): Either[String, List[String]] = {
+    val lines = text.linesIterator.map(clean).filter(_.nonEmpty).toList
     lines match {
       case Nil =>
         Left("There was nothing in that box to read.")
       case head :: _ if !head.toLowerCase.startsWith("session data:") =>
         Left("That doesn't look like a party hunt analyser. Copy the whole session out of the " +
           s"party window — it starts with a `Session data:` line, and yours starts with `${preview(head)}`.")
+      case _ =>
+        val starts = lines.zipWithIndex.collect {
+          case (line, i) if line.toLowerCase.startsWith("session data:") => i
+        }
+        val ends = starts.drop(1) :+ lines.length
+        Right(starts.zip(ends).map { case (from, until) => lines.slice(from, until).mkString("\n") })
+    }
+  }
+
+  private def parseOne(text: String): Either[String, HuntSession] = {
+    val lines = text.linesIterator.map(clean).filter(_.nonEmpty).toList
+    lines match {
+      case Nil =>
+        Left("There was nothing in that box to read.")
       case head :: rest =>
         val (header, blocks) = split(rest)
         for {
@@ -172,4 +217,24 @@ object HuntAnalyser {
   /** A line quoted back in an error, short enough not to be the error. */
   private def preview(line: String): String =
     if (line.length <= 40) line else line.take(39).trim + "…"
+
+  /** Drop what a clipboard leaves on a line and `trim` does not.
+   *
+   *  Copying an analyser out of the client often prefixes it with a byte-order
+   *  mark or a left-to-right mark. Neither is whitespace, so `trim` keeps it.
+   *  On the first line of the first box that only means the line still reads as
+   *  a header once the mark is gone. Pasted again behind another session — or
+   *  into the next box, which is joined on with a newline — the mark sits in
+   *  the middle of the text. `Session data:` then no longer starts the line, the
+   *  next hunt is not split off, and its header is read as one more member
+   *  whose name is the header. The first session's balance is divided across
+   *  that crowd, which is how three hunts become fifteen "members" and a
+   *  transfer from someone to themselves.
+   *
+   *  Format and control characters go entirely; every other unicode space
+   *  becomes an ordinary one so the trim at the end can see it. Applied per
+   *  line, after the line break has already been used.
+   */
+  private def clean(line: String): String =
+    line.replaceAll("[\\p{Cf}\\p{Cc}]", "").replaceAll("\\p{Z}+", " ").trim
 }

@@ -94,11 +94,14 @@ object LootSplitEmbeds {
 
   /** The three numbers the split turns on. Loot per hour is missing only when the
    *  header's timestamps didn't parse; the individual balance is missing when
-   *  there is nobody to split with. */
+   *  there is nobody to split with, or when several hunts were settled on their
+   *  own parties — one number would pretend everyone shared every hunt. */
   private def headline(hunt: HuntSession, goldEmoji: String): List[String] =
     List(
       Some(s"Balance: ${gold(hunt.balance, goldEmoji)}"),
-      if (hunt.members.size >= 2) Some(s"Individual balance: ${gold(hunt.individualBalance, goldEmoji)}") else None,
+      if (hunt.hunts == 1 && hunt.members.size >= 2)
+        Some(s"Individual balance: ${gold(hunt.individualBalance, goldEmoji)}")
+      else None,
       hunt.lootPerHour.map(rate => s"Loot per hour: ${gold(rate, goldEmoji)}")
     ).flatten
 
@@ -160,12 +163,19 @@ object LootSplitEmbeds {
   private def block(transfer: HuntTransfer): String = s"```\n${transfer.command}\n```"
 
   /** "02:17h hunt on 2026-09-01T21:12" — when it started and how long it ran, which
-   *  is what tells two splits from the same evening apart. */
+   *  is what tells two splits from the same evening apart. Several hunts fold the
+   *  count in: "3 hunts · 02:41h on …". */
   private def footer(hunt: HuntSession): Option[String] = {
-    val length = Option(hunt.sessionLabel).filter(_.nonEmpty).map(label => s"$label hunt")
+    val length = Option(hunt.sessionLabel).filter(_.nonEmpty).map { label =>
+      if (hunt.hunts > 1) label else s"$label hunt"
+    }
     val started = hunt.from.map(start => s"on ${start.truncatedTo(ChronoUnit.MINUTES)}")
-    val parts = List(length, started).flatten
-    if (parts.isEmpty) None else Some(parts.mkString(" "))
+    val when = List(length, started).flatten
+    if (hunt.hunts > 1) {
+      val parts = s"${hunt.hunts} hunts" :: when
+      Some(parts.mkString(" · ").replace(" · on ", " on "))
+    } else if (when.isEmpty) None
+    else Some(when.mkString(" "))
   }
 
   /** The amount carries the bold, not the label beside it: the reader is scanning

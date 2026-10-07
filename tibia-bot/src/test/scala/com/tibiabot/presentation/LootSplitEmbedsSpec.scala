@@ -93,6 +93,16 @@ class LootSplitEmbedsSpec extends AnyFunSuite with Matchers with OptionValues {
     split(Hunt).getFooter.getText shouldBe "02:17h hunt on 2026-09-01T21:12"
   }
 
+  test("several hunts name the count in the footer") {
+    val combined = Hunt.copy(hunts = 3, sessionLabel = "02:41h", huntedSeconds = Some(9660L))
+    split(combined).getFooter.getText shouldBe "3 hunts · 02:41h on 2026-09-01T21:12"
+  }
+
+  test("several hunts drop the individual balance rather than invent a shared split") {
+    val combined = Hunt.copy(hunts = 3, sessionLabel = "02:41h", huntedSeconds = Some(9660L))
+    split(combined).getDescription should not include "Individual balance"
+  }
+
   test("a party that is already square says so rather than showing an empty field") {
     val square = Hunt.copy(balance = 400L, members = Hunt.members.map(_.copy(balance = 100L)))
     field(split(square), "Transfers").getValue should include("already square")

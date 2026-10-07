@@ -23,8 +23,11 @@ object LootSplitIds {
 
   val Modal: String = s"${Prefix}modal"
 
-  /** The paste box inside the form. */
-  val PasteField: String = "analyser"
+  /** Five paste boxes — Discord's modal ceiling — so an evening of hunts can be
+   *  split without concatenating them by hand. Each box still accepts several
+   *  sessions pasted one after another; ten hunts across the lot is the parse
+   *  ceiling, not five. */
+  val PasteFields: List[String] = (1 to 5).map(n => s"analyser$n").toList
 
   val Label: String = "Loot Split"
 
